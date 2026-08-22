@@ -1,0 +1,2 @@
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@gluwa/usc-contracts/=node_modules/@gluwa/usc-contracts/
