@@ -6,8 +6,8 @@ export const wagmiConfig = createConfig({
   chains: [sourceChain, creditcoinChain],
   connectors: [injected()],
   transports: {
-    [sourceChain.id]: http(),
-    [creditcoinChain.id]: http(),
+    [sourceChain.id]: http(sourceChain.rpcUrls.default.http[0]),
+    [creditcoinChain.id]: http(creditcoinChain.rpcUrls.default.http[0]),
   },
 });
 
