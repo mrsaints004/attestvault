@@ -15,7 +15,7 @@ export const sourceChain = defineChain({
   id: Number(env('VITE_SOURCE_CHAIN_EVM_ID') || 11155111),
   name: env('VITE_SOURCE_CHAIN_NAME') || 'Ethereum Sepolia',
   nativeCurrency: { name: env('VITE_SOURCE_CHAIN_SYMBOL') || 'ETH', symbol: env('VITE_SOURCE_CHAIN_SYMBOL') || 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: [env('VITE_SOURCE_CHAIN_RPC_URL') || 'https://rpc.sepolia.org'] } },
+  rpcUrls: { default: { http: [env('VITE_SOURCE_CHAIN_RPC_URL') || 'https://ethereum-sepolia-rpc.publicnode.com'] } },
   blockExplorers: {
     default: { name: 'Explorer', url: env('VITE_SOURCE_CHAIN_EXPLORER') || 'https://sepolia.etherscan.io' },
   },
