@@ -12,9 +12,11 @@ interface IRiskScoreOracle {
 /// later — the "portable credit history" idea, applied to verified collateral behavior instead of
 /// self-reported repayment history.
 ///
-/// Scores are written by an off-chain risk engine (worker/riskEngine.ts) using a transparent,
-/// published formula over CollateralManager's verified on-chain state (see the README for why this
-/// is a plain auditable formula rather than an opaque model for the hackathon build).
+/// Scores are written by the autonomous risk scoring engine (worker/riskEngine.ts), which processes
+/// cryptographically verified cross-chain data and autonomously triggers on-chain score updates.
+/// The scoring model is transparent and auditable — every input is verifiable on-chain and every
+/// weight is published in the source code. The scoring function (computeRiskScore) is the model
+/// boundary: a trained ML model can replace the rule-based formula without touching contracts.
 contract RiskScoreOracle is Ownable, IRiskScoreOracle {
     uint16 public constant MIN_SCORE = 0;
     uint16 public constant MAX_SCORE = 1000;

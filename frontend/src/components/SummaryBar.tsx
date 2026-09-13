@@ -18,7 +18,7 @@ export function SummaryBar({ data }: { data: ReturnType<typeof usePortfolioData>
       </div>
       <div className="summary-divider" />
       <div className="summary-stat">
-        <div className="summary-k">Risk score</div>
+        <div className="summary-k">AI risk score</div>
         {isLoading ? (
           <Skeleton width={70} height={28} />
         ) : (

@@ -11,6 +11,7 @@ const PORTFOLIO_TUPLE = {
     { name: 'borrowedAmountUSD', type: 'uint256' },
     { name: 'riskScore', type: 'uint16' },
     { name: 'active', type: 'bool' },
+    { name: 'lastInterestTimestamp', type: 'uint256' },
   ],
 } as const;
 

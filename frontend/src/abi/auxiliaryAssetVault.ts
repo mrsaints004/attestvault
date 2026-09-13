@@ -43,6 +43,24 @@ export const AUXILIARY_ASSET_VAULT_ABI = [
   },
   {
     type: 'function',
+    name: 'pledgeAssetFor',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'category', type: 'uint8' },
+      { name: 'valueUSD', type: 'uint256' },
+    ],
+    outputs: [{ name: 'pledgeId', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'issuers',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    type: 'function',
     name: 'nextPledgeId',
     stateMutability: 'view',
     inputs: [],
@@ -70,5 +88,15 @@ export const AUXILIARY_ASSET_VAULT_ABI = [
     type: 'event',
     name: 'AssetReleased',
     inputs: [{ name: 'pledgeId', type: 'uint256', indexed: true }],
+  },
+  {
+    type: 'event',
+    name: 'IssuerAdded',
+    inputs: [{ name: 'issuer', type: 'address', indexed: true }],
+  },
+  {
+    type: 'event',
+    name: 'IssuerRemoved',
+    inputs: [{ name: 'issuer', type: 'address', indexed: true }],
   },
 ] as const;

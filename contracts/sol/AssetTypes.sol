@@ -31,4 +31,5 @@ struct Portfolio {
     uint256 borrowedAmountUSD;
     uint16 riskScore; // 0-1000, written by RiskScoreOracle; higher = safer
     bool active;
+    uint256 lastInterestTimestamp; // last time interest was accrued (block.timestamp)
 }

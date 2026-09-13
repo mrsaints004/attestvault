@@ -7,7 +7,7 @@ export function Header() {
       <div className="brand">
         <span className="mark">AV</span>
         <span className="name">AttestVault</span>
-        <span className="tagline">cross-chain RWA collateral, proven not promised</span>
+        <span className="tagline">AI-scored cross-chain RWA collateral — proven, not promised</span>
       </div>
       <div className="topbar-right">
         <NetworkChip />

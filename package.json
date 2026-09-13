@@ -2,14 +2,19 @@
   "name": "attestvault",
   "version": "0.1.0",
   "private": true,
-  "description": "Cross-chain RWA collateral engine with AI-assisted risk scoring, built on the Attestcoin Protocol (Creditcoin BUIDL CTC 2026 Fall).",
+  "description": "Cross-chain RWA collateral engine with autonomous AI-driven risk scoring, built on the Attestcoin Protocol (Creditcoin BUIDL CTC 2026 Fall).",
   "scripts": {
     "build": "forge build",
+    "test": "forge test -vv && ts-node worker/riskEngine.test.ts",
+    "test:sol": "forge test -vv",
+    "test:risk": "ts-node worker/riskEngine.test.ts",
     "deploy": "ts-node scripts/deploy.ts",
     "worker": "ts-node worker/index.ts",
     "pledge": "ts-node scripts/pledge_asset.ts",
     "inspect": "ts-node scripts/inspect_portfolio.ts",
-    "demo:batch": "ts-node scripts/demo_batch_proof.ts"
+    "demo:batch": "ts-node scripts/demo_batch_proof.ts",
+    "verify": "ts-node scripts/verify.ts",
+    "demo:full": "ts-node scripts/demo_full.ts"
   },
   "dependencies": {
     "@gluwa/usc-sdk": "^0.18.0",

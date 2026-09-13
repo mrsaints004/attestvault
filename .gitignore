@@ -21,6 +21,12 @@ frontend/.env.local
 !.env.example
 !frontend/.env.example
 
+# --- Worker runtime state ---
+.worker-cursors.json
+
+# --- Forge std (installed via forge install, not committed) ---
+lib/
+
 # --- Logs ---
 *.log
 npm-debug.log*

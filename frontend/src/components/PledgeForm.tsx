@@ -5,6 +5,7 @@ import { ASSET_CATEGORIES, contracts, isDeployed, sourceChain } from '../config'
 import { toUsdFixed, truncHash } from '../lib/units';
 import { useToast } from '../lib/toast';
 import { NetworkGate } from './NetworkGate';
+import { friendlyError } from '../lib/errors';
 
 const DEFAULTS = [25000, 180000, 6000, 12000];
 
@@ -25,11 +26,16 @@ export function PledgeForm({ onPledged }: { onPledged?: () => void }) {
   }, [isSuccess, hash]);
 
   useEffect(() => {
-    if (error) toast({ kind: 'warn', title: 'Pledge failed', detail: error.message.split('\n')[0] });
+    if (error) toast({ kind: 'warn', title: 'Pledge failed', detail: friendlyError(error) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   function submit() {
+    const numValue = Number(value);
+    if (!Number.isFinite(numValue) || numValue <= 0) {
+      toast({ kind: 'warn', title: 'Invalid value', detail: 'Enter a positive USD amount.' });
+      return;
+    }
     reset();
     writeContract({
       address: contracts.auxiliaryAssetVault,
@@ -51,8 +57,8 @@ export function PledgeForm({ onPledged }: { onPledged?: () => void }) {
   return (
     <div className="action-form">
       <p className="panel-note">
-        Writes to <span className="mono">AuxiliaryAssetVault</span> on {sourceChain.name}. The worker still
-        needs to run separately to prove this into CollateralManager on Creditcoin.
+        Select an asset type and its USD value, then confirm in your wallet. Your pledge is recorded
+        on {sourceChain.name} and automatically verified on Creditcoin by the background worker.
       </p>
       <NetworkGate chainId={sourceChain.id} chainName={sourceChain.name}>
         <div className="form-row">

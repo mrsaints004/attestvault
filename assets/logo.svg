@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A1F2E"/>
+      <stop offset="1" stop-color="#0D1117"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="128" y1="128" x2="384" y2="384" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9A24C"/>
+      <stop offset="1" stop-color="#B8791F"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Vault/shield shape -->
+  <path d="M256 96 L400 160 L400 296 C400 368 336 424 256 440 C176 424 112 368 112 296 L112 160 Z"
+        stroke="url(#accent)" stroke-width="16" fill="none" stroke-linejoin="round"/>
+  <!-- Inner checkmark / attestation mark -->
+  <path d="M192 264 L236 308 L328 216"
+        stroke="url(#accent)" stroke-width="20" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Cross-chain connection dots -->
+  <circle cx="152" cy="176" r="8" fill="#D9A24C" opacity="0.6"/>
+  <circle cx="360" cy="176" r="8" fill="#D9A24C" opacity="0.6"/>
+  <circle cx="256" cy="400" r="8" fill="#D9A24C" opacity="0.6"/>
+  <!-- Connection lines (representing cross-chain) -->
+  <line x1="160" y1="176" x2="192" y2="192" stroke="#D9A24C" stroke-width="2" opacity="0.3"/>
+  <line x1="352" y1="176" x2="320" y2="192" stroke="#D9A24C" stroke-width="2" opacity="0.3"/>
+</svg>

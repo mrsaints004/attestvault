@@ -13,7 +13,13 @@ export function PledgeList({ data }: { data: ReturnType<typeof usePortfolioData>
         <span className="pill mono">{pledgeIds.length}</span>
       </div>
       {pledgeIds.length === 0 && !pledgesLoading && (
-        <p className="panel-note">No verified pledges yet — pledge an asset, then run the worker to prove it in.</p>
+        <div className="empty-pledges">
+          <p className="panel-note">No verified pledges yet.</p>
+          <p className="panel-note">
+            Use the &ldquo;Pledge asset&rdquo; tab above to pledge your first asset.
+            Once the background worker verifies it on Creditcoin, it will appear here.
+          </p>
+        </div>
       )}
       {pledgeIds.length > 0 && (
         <div className="table-scroll">

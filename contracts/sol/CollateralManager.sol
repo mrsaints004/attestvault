@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/EvmV1Decoder.sol";
 
 import {USCBase} from "./USCBase.sol";
@@ -14,7 +15,7 @@ import {IRiskScoreOracle} from "./RiskScoreOracle.sol";
 /// collateral pledged across multiple source chains into one portfolio per borrower, verified
 /// entirely through the Attestcoin Protocol (single-tx `execute` and batch `executeBatch`, both
 /// inherited from USCBase) — no price oracle call happens anywhere in this contract.
-contract CollateralManager is Ownable, ReentrancyGuard, USCBase {
+contract CollateralManager is Ownable, ReentrancyGuard, Pausable, USCBase {
     enum CollateralActions {
         AssetPledged, // 0
         AssetValueUpdated, // 1
@@ -31,6 +32,11 @@ contract CollateralManager is Ownable, ReentrancyGuard, USCBase {
     uint16 public constant BASE_COLLATERAL_RATIO_BPS = 15000; // required ratio at score 0
     uint16 public constant BEST_COLLATERAL_RATIO_BPS = 11000; // required ratio at score 1000
     uint16 public constant LIQUIDATION_RATIO_BPS = 10500; // below this, portfolio is liquidatable
+
+    /// @dev Simple interest: 5% APR, expressed as per-second rate in basis points scaled by 1e18
+    /// for precision. 5% / (365.25 * 86400) ≈ 1.585e-9 → stored as 1_585_489_599 (scaled by 1e18).
+    uint256 public constant INTEREST_RATE_PER_SECOND = 1_585_489_599; // ~5% APR
+    uint256 internal constant INTEREST_PRECISION = 1e18;
 
     /// @dev chainKey => the one AuxiliaryAssetVault address trusted on that source chain. Events
     /// from any other address, even with a valid inclusion proof, are rejected — this is what
@@ -50,10 +56,19 @@ contract CollateralManager is Ownable, ReentrancyGuard, USCBase {
     event Borrowed(address indexed borrower, uint256 amountUSD, uint256 collateralRatioBps);
     event Repaid(address indexed borrower, uint256 amountUSD);
     event Liquidated(address indexed borrower, bytes32 indexed globalId, uint256 valueUSD);
+    event InterestAccrued(address indexed borrower, uint256 interestUSD, uint256 newBorrowedAmountUSD);
 
     constructor(address _riskOracle) Ownable(msg.sender) {
         require(_riskOracle != address(0), "zero address");
         riskOracle = IRiskScoreOracle(_riskOracle);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function registerSourceVault(uint64 chainKey, address vault) external onlyOwner {
@@ -211,9 +226,29 @@ contract CollateralManager is Ownable, ReentrancyGuard, USCBase {
         return (borrowedAmountUSD * requiredRatioBps(riskScore)) / 10000;
     }
 
-    function borrow(uint256 amountUSD) external nonReentrant {
+    /// @dev Accrues simple interest on a portfolio's borrowed amount. Called before borrow/repay so
+    /// the interest is always up-to-date.
+    function _accrueInterest(Portfolio storage p) internal {
+        if (p.borrowedAmountUSD == 0 || p.lastInterestTimestamp == 0) {
+            p.lastInterestTimestamp = block.timestamp;
+            return;
+        }
+        uint256 elapsed = block.timestamp - p.lastInterestTimestamp;
+        if (elapsed == 0) return;
+
+        uint256 interest = (p.borrowedAmountUSD * INTEREST_RATE_PER_SECOND * elapsed) / INTEREST_PRECISION;
+        if (interest > 0) {
+            p.borrowedAmountUSD += interest;
+            emit InterestAccrued(p.borrower, interest, p.borrowedAmountUSD);
+        }
+        p.lastInterestTimestamp = block.timestamp;
+    }
+
+    function borrow(uint256 amountUSD) external nonReentrant whenNotPaused {
         Portfolio storage p = _portfolios[msg.sender];
         require(p.active, "no collateral pledged");
+
+        _accrueInterest(p);
 
         uint16 riskScore = riskOracle.scoreOf(msg.sender);
         uint256 newBorrowed = p.borrowedAmountUSD + amountUSD;
@@ -226,27 +261,41 @@ contract CollateralManager is Ownable, ReentrancyGuard, USCBase {
         emit Borrowed(msg.sender, amountUSD, requiredRatioBps(riskScore));
     }
 
-    function repay(uint256 amountUSD) external nonReentrant {
+    function repay(uint256 amountUSD) external nonReentrant whenNotPaused {
         Portfolio storage p = _portfolios[msg.sender];
+        _accrueInterest(p);
         require(p.borrowedAmountUSD >= amountUSD, "repay exceeds borrowed amount");
 
         p.borrowedAmountUSD -= amountUSD;
         emit Repaid(msg.sender, amountUSD);
     }
 
+    /// @dev Liquidates the smallest-value active pledge first, minimising collateral destruction
+    /// for the borrower while still bringing the portfolio back towards a healthy ratio.
     function _checkLiquidation(address borrower) internal {
         Portfolio storage p = _portfolios[borrower];
         if (p.borrowedAmountUSD == 0) return;
 
         uint256 currentRatioBps = (p.totalCollateralValueUSD * 10000) / p.borrowedAmountUSD;
-        if (currentRatioBps < LIQUIDATION_RATIO_BPS && p.pledgeIds.length > 0) {
-            bytes32 target = p.pledgeIds[p.pledgeIds.length - 1];
-            AssetPledge storage pledge = pledges[target];
-            if (pledge.status == PledgeStatus.Active) {
-                p.totalCollateralValueUSD -= pledge.valueUSD;
-                pledge.status = PledgeStatus.Liquidated;
-                emit Liquidated(borrower, target, pledge.valueUSD);
+        if (currentRatioBps >= LIQUIDATION_RATIO_BPS) return;
+
+        // Find the smallest-value active pledge
+        uint256 smallestValue = type(uint256).max;
+        uint256 smallestIdx = type(uint256).max;
+        for (uint256 i = 0; i < p.pledgeIds.length; i++) {
+            AssetPledge storage candidate = pledges[p.pledgeIds[i]];
+            if (candidate.status == PledgeStatus.Active && candidate.valueUSD < smallestValue) {
+                smallestValue = candidate.valueUSD;
+                smallestIdx = i;
             }
+        }
+
+        if (smallestIdx != type(uint256).max) {
+            bytes32 target = p.pledgeIds[smallestIdx];
+            AssetPledge storage pledge = pledges[target];
+            p.totalCollateralValueUSD -= pledge.valueUSD;
+            pledge.status = PledgeStatus.Liquidated;
+            emit Liquidated(borrower, target, pledge.valueUSD);
         }
     }
 

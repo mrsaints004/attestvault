@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { Contract, ethers } from 'ethers';
 
 import vaultAbi from '../out/AuxiliaryAssetVault.sol/AuxiliaryAssetVault.json';
@@ -53,6 +55,35 @@ interface ChainWorker {
   fromBlock: number;
 }
 
+const CURSOR_FILE = path.resolve(__dirname, '..', '.worker-cursors.json');
+
+interface CursorState {
+  [chainKey: string]: number; // chainKey → fromBlock
+}
+
+function loadCursors(): CursorState {
+  try {
+    if (fs.existsSync(CURSOR_FILE)) {
+      return JSON.parse(fs.readFileSync(CURSOR_FILE, 'utf-8'));
+    }
+  } catch {
+    console.warn('Could not read cursor file, starting from latest block.');
+  }
+  return {};
+}
+
+function saveCursors(chains: ChainWorker[]) {
+  const state: CursorState = {};
+  for (const chain of chains) {
+    state[String(chain.chainKey)] = chain.fromBlock;
+  }
+  try {
+    fs.writeFileSync(CURSOR_FILE, JSON.stringify(state, null, 2));
+  } catch (err: any) {
+    console.warn('Could not persist cursors:', err.message);
+  }
+}
+
 let isShuttingDown = false;
 process.on('SIGINT', () => (isShuttingDown = true));
 process.on('SIGTERM', () => (isShuttingDown = true));
@@ -61,17 +92,21 @@ async function buildChainWorker(
   label: string,
   rpcUrl: string,
   vaultAddress: string,
-  chainKey: number
+  chainKey: number,
+  cursors: CursorState
 ): Promise<ChainWorker> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const vaultContract = new Contract(vaultAddress, vaultAbi.abi, provider);
-  const fromBlock = await provider.getBlockNumber();
-  console.log(`[chain ${chainKey}] (${label}) polling AuxiliaryAssetVault ${vaultAddress} from block ${fromBlock}`);
+  const latestBlock = await provider.getBlockNumber();
+  const savedBlock = cursors[String(chainKey)];
+  const fromBlock = savedBlock && savedBlock <= latestBlock ? savedBlock : latestBlock;
+  const source = savedBlock ? 'persisted cursor' : 'latest block';
+  console.log(`[chain ${chainKey}] (${label}) polling AuxiliaryAssetVault ${vaultAddress} from block ${fromBlock} (${source})`);
   return { chainKey, provider, vaultContract, queue: [], processedTxs: new Set(), queueOpenedAt: 0, fromBlock };
 }
 
 const main = async () => {
-  console.log('Starting AttestVault worker...');
+  console.log('Starting AttestVault worker (proof relay + autonomous risk scoring)...');
 
   const proofBuilderUrl = process.env.PROOF_BUILDER_URL;
   const ccRpcUrl = process.env.CREDITCOIN_RPC_URL;
@@ -94,8 +129,9 @@ const main = async () => {
   const ccWallet = new ethers.Wallet(ccWalletPrivateKey!, ccProvider);
   const managerContract = new Contract(collateralManagerAddress!, managerAbi.abi, ccWallet);
 
+  const cursors = loadCursors();
   const chains: ChainWorker[] = [
-    await buildChainWorker('chain 1', sourceChainRpcUrl, auxiliaryAssetVaultAddress!, sourceChainKey),
+    await buildChainWorker('chain 1', sourceChainRpcUrl, auxiliaryAssetVaultAddress!, sourceChainKey, cursors),
   ];
 
   // Second source chain is entirely optional — only started if all three vars are present. See the
@@ -105,7 +141,7 @@ const main = async () => {
   const sourceChain2Key = Number(process.env.SOURCE_CHAIN_2_KEY);
   if (sourceChain2RpcUrl && isValidContractAddress(auxiliaryAssetVault2Address) && !isNaN(sourceChain2Key)) {
     chains.push(
-      await buildChainWorker('chain 2', sourceChain2RpcUrl, auxiliaryAssetVault2Address!, sourceChain2Key)
+      await buildChainWorker('chain 2', sourceChain2RpcUrl, auxiliaryAssetVault2Address!, sourceChain2Key, cursors)
     );
   } else {
     console.log('Second source chain not configured — running single-chain. See .env.example to add one.');
@@ -206,7 +242,7 @@ const main = async () => {
     }
   };
 
-  console.log(`Worker started! Listening for AuxiliaryAssetVault events on ${chains.length} chain(s)...`);
+  console.log(`Worker + autonomous risk scoring started! Listening for AuxiliaryAssetVault events on ${chains.length} chain(s)...`);
 
   while (!isShuttingDown) {
     for (const chain of chains) {
@@ -244,9 +280,11 @@ const main = async () => {
       }
     }
 
+    saveCursors(chains);
     await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
   }
 
+  saveCursors(chains);
   console.log('Worker stopped.');
 };
 
